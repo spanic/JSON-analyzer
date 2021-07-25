@@ -4,11 +4,13 @@ import com.fasterxml.jackson.core.json.JsonReadFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 
-import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.text.MessageFormat;
 import java.util.*;
@@ -16,67 +18,107 @@ import java.util.stream.Collectors;
 
 public class Main {
 
-    public static void main(String[] args) {
+    private static ObjectMapper mapper;
+    private static ObjectReader reader;
 
-        if (args.length < 2) {
-            throw new IllegalArgumentException(
-                    MessageFormat.format("Not enough paths to files for comparison: {0}/2", args.length)
+    public static void main(String[] args) throws IOException {
+
+        if (args.length < 1) {
+            throw new IllegalArgumentException("Please choose one of the options: \n"
+                    + "-compare {json_1} {json_2} \n"
+                    + "-cleanup {json_excluded} {json_target}"
             );
+        } else {
+            String chosenOption = args[0];
+            if (ProgramOptions.COMPARE.getName().equalsIgnoreCase(chosenOption)) {
+                if (args.length != 3) {
+                    throw new IllegalArgumentException(
+                            MessageFormat.format("Not enough / too many files for comparison: {0}/2", args.length)
+                    );
+                }
+                findUniqueEntriesForEachFile(args[1], args[2]);
+            } else if (ProgramOptions.CLEANUP.getName().equalsIgnoreCase(chosenOption)) {
+                if (args.length < 3) {
+                    throw new IllegalArgumentException(
+                            MessageFormat.format("Not enough files for cleanup: {0}/2+", args.length)
+                    );
+                }
+                removeExcludedKeysFromEachFile(args[1], Arrays.copyOfRange(args, 2, args.length));
+            } else {
+                throw new IllegalArgumentException("Incorrect option has been specified, please use -compare or -cleanup");
+            }
         }
 
-        String firstFilePath = args[0];
-        File firstFile = Paths.get(firstFilePath).toFile();
+    }
 
-        ObjectMapper mapper = new ObjectMapper();
-        ObjectReader reader = mapper.reader()
-                .withFeatures(JsonReadFeature.ALLOW_TRAILING_COMMA);
+    private static void findUniqueEntriesForEachFile(String firstFilePath, String secondFilePath) throws IOException {
 
-        System.out.println("Straining & aligning keys...");
+        initGlobalObjectsIfNeeded();
 
-        Map<String, JsonNode> firstNodesPlainMap = null;
-        try {
-            JsonNode rootJsonNode = reader.readTree(new FileInputStream(firstFile));
-            firstNodesPlainMap = getPlainSortedMapOfNodes(rootJsonNode);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-
-        String secondFilePath = args[1];
-        File secondFile = Paths.get(secondFilePath).toFile();
-
-        Map<String, JsonNode> secondNodesPlainMap = null;
-        try {
-            JsonNode rootJsonNode = reader.readTree(new FileInputStream(secondFile));
-            secondNodesPlainMap = getPlainSortedMapOfNodes(rootJsonNode);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        System.out.println("Reading & aligning files...");
+        // TODO: parallelize this section
+        // -----------------------------------
+        Map<String, JsonNode> firstNodesPlainMap = readJsonFileToPlainMap(firstFilePath);
+        Map<String, JsonNode> secondNodesPlainMap = readJsonFileToPlainMap(secondFilePath);
+        // -----------------------------------
 
         if (firstNodesPlainMap == null || secondNodesPlainMap == null) {
-            return;
+            throw new RuntimeException("Cannot align keys in one or both files :(");
         }
+
+        System.out.println("Comparing files...");
         Map<String, JsonNode>[] uniqueEntries = findUniqueEntries(firstNodesPlainMap, secondNodesPlainMap);
 
-        System.out.println("Unique keys: 1st file (" + uniqueEntries[0].size() + ")");
-        System.out.println(uniqueEntries[0]);
-        System.out.println("Second file: (" + uniqueEntries[1].size() + ")");
-        System.out.println(uniqueEntries[1]);
         System.out.println("Writing files to disk...");
+        // TODO: parallelize this section
+        // -----------------------------------
+        Path firstFilePathObj = Paths.get(firstFilePath);
+        String newFirstFileName = firstFilePathObj.getFileName().toString();
+        newFirstFileName = newFirstFileName.substring(0, newFirstFileName.lastIndexOf(".json")) + " (unique).json";
 
-        try {
+        String firstFileUniqueEntries = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(uniqueEntries[0]);
+        writeToFile(firstFilePathObj.getParent(), newFirstFileName, firstFileUniqueEntries);
 
-            FileWriter fileWriter = new FileWriter(Paths.get(firstFilePath).getParent().toString() + "\\result_1.json", false);
-            fileWriter.write(mapper.writerWithDefaultPrettyPrinter().writeValueAsString(uniqueEntries[0]));
-            fileWriter.flush();
+        Path secondFilePathObj = Paths.get(secondFilePath);
+        String newSecondFileName = secondFilePathObj.getFileName().toString();
+        newSecondFileName = newSecondFileName.substring(0, newSecondFileName.lastIndexOf(".json")) + " (unique).json";
 
-            fileWriter = new FileWriter(Paths.get(secondFilePath).getParent().toString() + "\\result_2.json", false);
-            fileWriter.write(mapper.writerWithDefaultPrettyPrinter().writeValueAsString(uniqueEntries[1]));
-            fileWriter.flush();
+        String secondFileUniqueEntries = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(uniqueEntries[1]);
+        writeToFile(secondFilePathObj.getParent(), newSecondFileName, secondFileUniqueEntries);
+        // -----------------------------------
 
-            fileWriter.close();
+        System.out.println("Done!");
 
-        } catch (IOException e) {
-            e.printStackTrace();
+    }
+
+    private static void removeExcludedKeysFromEachFile(String excludedKeysFilePath, String... targetFilesPaths) throws IOException {
+
+        initGlobalObjectsIfNeeded();
+
+        System.out.println("Parsing input files...");
+        Set<String> keysToExclude = readJsonFileToPlainMap(excludedKeysFilePath).keySet();
+        Set<String> uniqueTargetFilePaths = Arrays.stream(targetFilesPaths).collect(Collectors.toSet());
+
+        System.out.println("Removing entries from the files...");
+        for (String filePath : uniqueTargetFilePaths) {
+
+            // TODO: parallelize this section
+            // -----------------------------------
+            Map<String, JsonNode> nodesPlainMap = readJsonFileToPlainMap(filePath);
+
+            if (nodesPlainMap != null) {
+                for (String keyToExclude : keysToExclude) {
+                    nodesPlainMap.remove(keyToExclude);
+                }
+            }
+
+            String entriesWithoutExcludedKeysAsString = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(nodesPlainMap);
+            Path targetFilePath = Paths.get(filePath);
+            String newFileName = targetFilePath.getFileName().toString();
+            newFileName = newFileName.substring(0, newFileName.lastIndexOf(".json")) + " (clean).json";
+            writeToFile(targetFilePath.getParent(), newFileName, entriesWithoutExcludedKeysAsString);
+            // -----------------------------------
+
         }
 
         System.out.println("Done!");
@@ -141,8 +183,6 @@ public class Main {
     private static Map<String, JsonNode>[] findUniqueEntries(Map<String, JsonNode> firstMapOfNodes,
                                                              Map<String, JsonNode> secondMapOfNodes) {
 
-        System.out.println("Comparing files...");
-
         LinkedList<Map.Entry<String, JsonNode>> firstListOfNodes = new LinkedList<>(firstMapOfNodes.entrySet());
         ListIterator<Map.Entry<String, JsonNode>> firstListIterator = firstListOfNodes.listIterator();
 
@@ -185,6 +225,42 @@ public class Main {
 
         return (Map<String, JsonNode>[]) new Map<?, ?>[]{firstMapOfUniqueNodes, secondMapOfUniqueNodes};
 
+    }
+
+    private static void initGlobalObjectsIfNeeded() {
+        if (mapper == null) {
+            mapper = new ObjectMapper();
+        }
+        if (reader == null) {
+            reader = mapper.reader().withFeatures(JsonReadFeature.ALLOW_TRAILING_COMMA);
+        }
+    }
+
+    private static Map<String, JsonNode> readJsonFileToPlainMap(String filePath) throws IOException {
+
+        initGlobalObjectsIfNeeded();
+
+        JsonNode firstRootJsonNode = JsonNodeFactory.instance.missingNode();
+        try (FileInputStream inputStream = new FileInputStream(filePath)) {
+            firstRootJsonNode = reader.readTree(inputStream);
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        }
+
+        Map<String, JsonNode> nodesPlainMap = new HashMap<>();
+        if (firstRootJsonNode.isObject() && !firstRootJsonNode.isEmpty()) {
+            nodesPlainMap = getPlainSortedMapOfNodes(firstRootJsonNode);
+        }
+
+        return nodesPlainMap;
+
+    }
+
+    private static void writeToFile(Path pathToParentDir, String newFileName, String content) throws IOException {
+        FileWriter fileWriter = new FileWriter(pathToParentDir.toString() + "\\" + newFileName, false);
+        fileWriter.write(content);
+        fileWriter.flush();
+        fileWriter.close();
     }
 
 }
