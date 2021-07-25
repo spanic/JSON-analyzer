@@ -12,8 +12,13 @@ This is a super-simple single-class JSON analyzer tool, that I've used for one o
 * run as `java -jar JsonAnalyzer-1.0-SNAPSHOT.jar` with the following way of setting the arguments:
   * for **compare**: `-compare C:\en-eComm.json C:\en-ePOS.json`;
   * for **cleanup**: `-cleanup C:\keys-to-exclude.json C:\en-eComm.json`;
+  
+or
+
+* download the latest stable build from the [Releases](https://github.com/spanic/JSON-analyzer/releases) page 
 
 # Disclaimer
 
 Of course, I know that there are a lot of things to fix & refactor, my main goal was just to create a working prototype 
 as soon as possible.
+
