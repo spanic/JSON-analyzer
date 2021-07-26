@@ -5,25 +5,14 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import javafx.util.Pair;
 
-import java.io.BufferedWriter;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.OutputStreamWriter;
+import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.text.MessageFormat;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
-import java.util.LinkedList;
-import java.util.ListIterator;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 public class Main {
@@ -54,6 +43,25 @@ public class Main {
                     );
                 }
                 removeExcludedKeysFromEachFile(args[1], Arrays.copyOfRange(args, 2, args.length));
+            } else if (ProgramOptions.MERGE.getName().equalsIgnoreCase(chosenOption)) {
+                if (args.length < 3) {
+                    throw new IllegalArgumentException(
+                            MessageFormat.format("Not enough files for merge: {0}/2+", args.length)
+                    );
+                }
+                mergeFiles(Arrays.copyOfRange(args, 1, args.length));
+            } else if (ProgramOptions.FIND.getName().equalsIgnoreCase(chosenOption)) {
+                if (args.length != 5) {
+                    throw new IllegalArgumentException(
+                            MessageFormat.format("Not enough files for finding inclusions: {0}/5", args.length)
+                    );
+                }
+                List<Pair<String, String>> listOfNamedSets = new ArrayList<>();
+                for (int i = 2; i < args.length; i++) {
+                    String[] setNameAndFilePath = args[i].split("=");
+                    listOfNamedSets.add(new Pair<>(setNameAndFilePath[0], setNameAndFilePath[1]));
+                }
+                findInclusions(args[1], listOfNamedSets.toArray(new Pair[0]));
             } else {
                 throw new IllegalArgumentException("Incorrect option has been specified, please use -compare or -cleanup");
             }
@@ -130,6 +138,71 @@ public class Main {
             // -----------------------------------
 
         }
+
+        System.out.println("Done!");
+
+    }
+
+    private static void mergeFiles(String... filesPaths) throws IOException {
+
+        initGlobalObjectsIfNeeded();
+
+        System.out.println("Merging files...");
+
+        Map<String, JsonNode> mergedMap = new TreeMap<>();
+
+        // TODO: parallelize this section
+        // -----------------------------------
+        for (String filePath : filesPaths) {
+            Map<String, JsonNode> plainMap = readJsonFileToPlainMap(filePath);
+            mergedMap.putAll(plainMap);
+        }
+        // -----------------------------------
+
+        System.out.println("Writing files to the disk...");
+
+        String mergedEntriesAsString = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(mergedMap);
+        Path targetFilePath = Paths.get(filesPaths[0]).getParent();
+        writeToFile(targetFilePath, "merged.json", mergedEntriesAsString);
+
+        System.out.println("Done!");
+
+    }
+
+    @SafeVarargs
+    private static void findInclusions(String sourceFilePath, Pair<String, String>... sets) throws IOException {
+
+        initGlobalObjectsIfNeeded();
+
+        System.out.println("Finding inclusions...");
+
+        Set<String> sourceKeySet = readJsonFileToPlainMap(sourceFilePath).keySet();
+        Map<String, String> resultMap = new TreeMap<>();
+
+        // TODO: parallelize this section
+        // -----------------------------------
+        for (Pair<String, String> set : sets) {
+
+            System.out.println(MessageFormat.format("Checking \"{0}\" set...", set.getKey()));
+
+            Pair<String, Set<String>> namedSetPlainMap = new Pair<>(set.getKey(), readJsonFileToPlainMap(set.getValue()).keySet());
+
+            for (String currentSourceKey : sourceKeySet) {
+                if (namedSetPlainMap.getValue().contains(currentSourceKey)) {
+                    resultMap.put(currentSourceKey, namedSetPlainMap.getKey());
+                }
+            }
+
+        }
+        // -----------------------------------
+
+        System.out.println("Completed, writing result file to disk...");
+
+        String resultJsonAsString = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(resultMap);
+        Path targetFilePath = Paths.get(sourceFilePath);
+        String newFileName = targetFilePath.getFileName().toString();
+        newFileName = newFileName.substring(0, newFileName.lastIndexOf(".json")) + " (inclusions).json";
+        writeToFile(targetFilePath.getParent(), newFileName, resultJsonAsString);
 
         System.out.println("Done!");
 
@@ -233,7 +306,7 @@ public class Main {
                         LinkedHashMap::new
                 ));
 
-        return (Map<String, JsonNode>[]) new Map<?, ?>[] {firstMapOfUniqueNodes, secondMapOfUniqueNodes};
+        return (Map<String, JsonNode>[]) new Map<?, ?>[]{firstMapOfUniqueNodes, secondMapOfUniqueNodes};
 
     }
 

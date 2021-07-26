@@ -3,7 +3,9 @@ package com.jsonanalyzer.main;
 public enum ProgramOptions {
 
     COMPARE("-compare"),
-    CLEANUP("-cleanup");
+    CLEANUP("-cleanup"),
+    MERGE("-merge"),
+    FIND("-find");
 
     private final String name;
 
