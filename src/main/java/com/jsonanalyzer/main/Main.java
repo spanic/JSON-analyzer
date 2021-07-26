@@ -6,14 +6,24 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 
+import java.io.BufferedWriter;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
-import java.io.FileWriter;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStreamWriter;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.text.MessageFormat;
-import java.util.*;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.LinkedList;
+import java.util.ListIterator;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 public class Main {
@@ -223,7 +233,7 @@ public class Main {
                         LinkedHashMap::new
                 ));
 
-        return (Map<String, JsonNode>[]) new Map<?, ?>[]{firstMapOfUniqueNodes, secondMapOfUniqueNodes};
+        return (Map<String, JsonNode>[]) new Map<?, ?>[] {firstMapOfUniqueNodes, secondMapOfUniqueNodes};
 
     }
 
@@ -257,10 +267,17 @@ public class Main {
     }
 
     private static void writeToFile(Path pathToParentDir, String newFileName, String content) throws IOException {
-        FileWriter fileWriter = new FileWriter(pathToParentDir.toString() + "\\" + newFileName, false);
-        fileWriter.write(content);
-        fileWriter.flush();
-        fileWriter.close();
+
+        BufferedWriter writer = new BufferedWriter(
+                new OutputStreamWriter(
+                        new FileOutputStream(pathToParentDir.toString() + "\\" + newFileName, false),
+                        StandardCharsets.UTF_8
+                )
+        );
+        writer.write(content);
+        writer.flush();
+        writer.close();
+
     }
 
 }
