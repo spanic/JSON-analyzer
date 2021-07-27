@@ -4,7 +4,6 @@ import com.fasterxml.jackson.core.json.JsonReadFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
-import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import javafx.util.Pair;
 
 import java.io.*;
@@ -323,12 +322,7 @@ public class Main {
 
         initGlobalObjectsIfNeeded();
 
-        JsonNode firstRootJsonNode = JsonNodeFactory.instance.missingNode();
-        try (FileInputStream inputStream = new FileInputStream(filePath)) {
-            firstRootJsonNode = reader.readTree(inputStream);
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
-        }
+        JsonNode firstRootJsonNode = readJsonTreeByFilePath(filePath);
 
         Map<String, JsonNode> nodesPlainMap = new HashMap<>();
         if (firstRootJsonNode.isObject() && !firstRootJsonNode.isEmpty()) {
@@ -339,7 +333,7 @@ public class Main {
 
     }
 
-    private static void writeToFile(Path pathToParentDir, String newFileName, String content) throws IOException {
+    public static void writeToFile(Path pathToParentDir, String newFileName, String content) throws IOException {
 
         BufferedWriter writer = new BufferedWriter(
                 new OutputStreamWriter(
@@ -347,9 +341,23 @@ public class Main {
                         StandardCharsets.UTF_8
                 )
         );
+
         writer.write(content);
         writer.flush();
         writer.close();
+
+    }
+
+    public static JsonNode readJsonTreeByFilePath(String path) throws IOException {
+
+        initGlobalObjectsIfNeeded();
+
+        JsonNode rootNode;
+        try (FileInputStream inputStream = new FileInputStream(Paths.get(path).toAbsolutePath().toString())) {
+            rootNode = reader.readTree(inputStream);
+        }
+
+        return rootNode;
 
     }
 

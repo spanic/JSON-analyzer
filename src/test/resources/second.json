@@ -1,0 +1,12 @@
+{
+    "component.promo-carousel.offers-included": "Offers included",
+    "component.basket": {
+        "buttons": {
+            "checkout": "Check out",
+            "continue-shopping": "Continue shopping"
+        },
+        "return-info": "You have 14 days to change your mind."
+    },
+    "component.bolt.on.section.see.info": "See full info",
+    "component.save-basket.error-title": "Something went wrong"
+}
