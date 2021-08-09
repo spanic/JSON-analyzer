@@ -405,7 +405,7 @@ public class Main {
 
         BufferedWriter writer = new BufferedWriter(
                 new OutputStreamWriter(
-                        new FileOutputStream(pathToParentDir.toString() + "\\" + newFileName, false),
+                        new FileOutputStream(pathToParentDir.toString() + "/" + newFileName, false),
                         StandardCharsets.UTF_8
                 )
         );
