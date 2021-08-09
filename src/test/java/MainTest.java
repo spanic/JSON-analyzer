@@ -1,6 +1,7 @@
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.google.common.collect.Comparators;
 import com.jsonanalyzer.main.Main;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -12,8 +13,13 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Comparator;
+import java.util.Map;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertAll;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 public class MainTest {
 
@@ -55,6 +61,23 @@ public class MainTest {
         assertAll("root node",
                 () -> assertTrue(finalRootNode.isObject(), () -> "is not an object"),
                 () -> assertFalse(finalRootNode.isEmpty(), () -> "is empty")
+        );
+
+    }
+
+    @DisplayName("🥇 Sorting and aligning keys:")
+    @ParameterizedTest(name = "from {0}")
+    @ValueSource(strings = {"src/test/resources/first.json", "src/test/resources/second.json"})
+    public void testSortingFile(String path) throws IOException {
+
+        JsonNode rootNode = Main.readJsonTreeByFilePath(path);
+
+        Map<String, JsonNode> sortedPlainMapFromJsonNode = Main.getSortedPlainMapOfNodes(rootNode);
+
+        assertAll("result key map",
+                () -> assertFalse(sortedPlainMapFromJsonNode.isEmpty(), () -> "is empty"),
+                () -> assertTrue(Comparators.isInOrder(sortedPlainMapFromJsonNode.keySet(), Comparator.naturalOrder()),
+                        () -> "is not naturally ordered")
         );
 
     }

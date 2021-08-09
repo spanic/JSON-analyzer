@@ -3,6 +3,7 @@
 This is a super-simple single-class JSON analyzer tool, that I've used for one of my tasks at work.
 
 # What can it do?
+* **sort and align keys** from the source JSON file;
 * **remove all the keys** listed in the specified JSON file from the other JSON files passed as an arguments;
 * **find unique entries** in both of the 2 files, like disjunctive union (or symmetric difference, as you wish);
 * **merge** JSON files into one, with alphabetically-sorted unique keys;
@@ -12,11 +13,12 @@ This is a super-simple single-class JSON analyzer tool, that I've used for one o
 * clone this repo;
 * execute `mvn package` in the project home directory (requires maven and JDK 8);
   * *or download the latest stable build from the [Releases](https://github.com/spanic/JSON-analyzer/releases) page*
-* run as `java -jar JsonAnalyzer-1.0-SNAPSHOT.jar` with the following way of setting the arguments:
-  * for **compare**: `-compare C:\first.json C:\second.json`;
-  * for **cleanup**: `-cleanup C:\keys-to-exclude.json C:\source.json`;
-  * for **merge**: `-merge C:\first.json C:\second.json`
-  * for **finding inclusions**: `-find C:\source.json first=C:\first.json second=C:\second.json`
+* run as `java -jar JsonAnalyzer-1.X.jar` with one of the following parameters:
+  * for **sorting and aligning**: `-sort C:\source.json`;
+  * for **finding uniques**: `-compare C:\first.json C:\second.json`;
+  * for **cleanup**: `-cleanup C:\keys-to-exclude.json C:\first.json C:\second.json ...`;
+  * for **merging**: `-merge C:\first.json C:\second.json ...`
+  * for **finding inclusions**: `-find C:\source.json first=C:\first.json second=C:\second.json ...`
 
 # Disclaimer
 

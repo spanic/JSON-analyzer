@@ -6,12 +6,26 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
 import javafx.util.Pair;
 
-import java.io.*;
+import java.io.BufferedWriter;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.text.MessageFormat;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.ListIterator;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 public class Main {
@@ -21,50 +35,92 @@ public class Main {
 
     public static void main(String[] args) throws IOException {
 
-        if (args.length < 1) {
-            throw new IllegalArgumentException("Please choose one of the options: \n"
-                    + "-compare {json_1} {json_2} \n"
-                    + "-cleanup {json_excluded} {json_target}"
-            );
-        } else {
-            String chosenOption = args[0];
-            if (ProgramOptions.COMPARE.getName().equalsIgnoreCase(chosenOption)) {
-                if (args.length != 3) {
-                    throw new IllegalArgumentException(
-                            MessageFormat.format("Not enough / too many files for comparison: {0}/2", args.length)
-                    );
-                }
-                findUniqueEntriesForEachFile(args[1], args[2]);
-            } else if (ProgramOptions.CLEANUP.getName().equalsIgnoreCase(chosenOption)) {
-                if (args.length < 3) {
-                    throw new IllegalArgumentException(
-                            MessageFormat.format("Not enough files for cleanup: {0}/2+", args.length)
-                    );
-                }
-                removeExcludedKeysFromEachFile(args[1], Arrays.copyOfRange(args, 2, args.length));
-            } else if (ProgramOptions.MERGE.getName().equalsIgnoreCase(chosenOption)) {
-                if (args.length < 3) {
-                    throw new IllegalArgumentException(
-                            MessageFormat.format("Not enough files for merge: {0}/2+", args.length)
-                    );
-                }
-                mergeFiles(Arrays.copyOfRange(args, 1, args.length));
-            } else if (ProgramOptions.FIND.getName().equalsIgnoreCase(chosenOption)) {
-                if (args.length != 5) {
-                    throw new IllegalArgumentException(
-                            MessageFormat.format("Not enough files for finding inclusions: {0}/5", args.length)
-                    );
-                }
-                List<Pair<String, String>> listOfNamedSets = new ArrayList<>();
-                for (int i = 2; i < args.length; i++) {
-                    String[] setNameAndFilePath = args[i].split("=");
-                    listOfNamedSets.add(new Pair<>(setNameAndFilePath[0], setNameAndFilePath[1]));
-                }
-                findInclusions(args[1], listOfNamedSets.toArray(new Pair[0]));
-            } else {
-                throw new IllegalArgumentException("Incorrect option has been specified, please use -compare or -cleanup");
-            }
+        String chosenOption = null;
+        boolean isOptionValid = false;
+
+        if (args.length >= 2) {
+            chosenOption = args[0];
+            isOptionValid = Arrays.stream(ProgramOptions.values())
+                    .anyMatch(programOption -> programOption.getName().equalsIgnoreCase(args[0]));
         }
+
+        if (chosenOption == null || !isOptionValid) {
+            throw new IllegalArgumentException("Please choose one of the options: \n"
+                    + "-sort {json}"
+                    + "-compare {json_1} {json_2} \n"
+                    + "-cleanup {json_excluded} {json_target} \n"
+                    + "-merge {json_1} {json_2} ... \n"
+                    + "-find {source_json} {set_name_1}={json_set_1} {set_name_2}={json_set_2} ..."
+            );
+        }
+
+        String[] arguments = Arrays.copyOfRange(args, 1, args.length);
+
+        if (ProgramOptions.ALIGN_AND_SORT.getName().equalsIgnoreCase(chosenOption)) {
+            if (arguments.length != 1) {
+                throw new IllegalArgumentException(
+                        MessageFormat.format("Not enough / too many files for sorting: {0}/1", arguments.length)
+                );
+            }
+            alignAndSort(arguments);
+        } else if (ProgramOptions.COMPARE.getName().equalsIgnoreCase(chosenOption)) {
+            if (arguments.length != 2) {
+                throw new IllegalArgumentException(
+                        MessageFormat.format("Not enough / too many files for comparison: {0}/2", arguments.length)
+                );
+            }
+            findUniqueEntriesForEachFile(arguments[0], arguments[1]);
+        } else if (ProgramOptions.CLEANUP.getName().equalsIgnoreCase(chosenOption)) {
+            if (arguments.length < 2) {
+                throw new IllegalArgumentException(
+                        MessageFormat.format("Not enough files for cleanup: {0}/2+", arguments.length)
+                );
+            }
+            removeExcludedKeysFromEachFile(arguments[0], Arrays.copyOfRange(arguments, 1, arguments.length));
+        } else if (ProgramOptions.MERGE.getName().equalsIgnoreCase(chosenOption)) {
+            if (arguments.length < 2) {
+                throw new IllegalArgumentException(
+                        MessageFormat.format("Not enough files for merge: {0}/2+", arguments.length)
+                );
+            }
+            mergeFiles(arguments);
+        } else if (ProgramOptions.FIND.getName().equalsIgnoreCase(chosenOption)) {
+            if (arguments.length < 2) {
+                throw new IllegalArgumentException(
+                        MessageFormat.format("Not enough files for finding inclusions: {0}/2+", arguments.length)
+                );
+            }
+            List<Pair<String, String>> listOfNamedSets = new ArrayList<>();
+            for (int i = 1; i < arguments.length; i++) {
+                String[] setNameAndFilePath = arguments[i].split("=");
+                listOfNamedSets.add(new Pair<>(setNameAndFilePath[0], setNameAndFilePath[1]));
+            }
+            findInclusions(arguments[0], listOfNamedSets.toArray(new Pair[0]));
+        }
+
+    }
+
+    private static void alignAndSort(String... sourceFilesPaths) throws IOException {
+
+        Set<String> uniqueSourceFilePaths = Arrays.stream(sourceFilesPaths).collect(Collectors.toSet());
+
+        System.out.println("Sorting & aligning the files...");
+        for (String filePath : uniqueSourceFilePaths) {
+
+            // TODO: parallelize this section
+            // -----------------------------------
+            Map<String, JsonNode> nodesPlainMap = readJsonFileToPlainMap(filePath);
+
+            String sortedEntriesAsString = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(nodesPlainMap);
+            Path targetFilePath = Paths.get(filePath);
+            String newFileName = targetFilePath.getFileName().toString();
+            newFileName = newFileName.substring(0, newFileName.lastIndexOf(".json")) + " (sorted).json";
+            writeToFile(targetFilePath.getParent(), newFileName, sortedEntriesAsString);
+            // -----------------------------------
+
+        }
+
+        System.out.println("Done!");
 
     }
 
@@ -207,9 +263,14 @@ public class Main {
 
     }
 
-    private static Map<String, JsonNode> getPlainSortedMapOfNodes(JsonNode rootNode) {
+    public static Map<String, JsonNode> getSortedPlainMapOfNodes(JsonNode rootNode) {
 
         Map<String, JsonNode> result = new HashMap<>();
+
+        if (!rootNode.isObject() || rootNode.isEmpty()) {
+            return result;
+        }
+
         Iterator<Map.Entry<String, JsonNode>> fieldsIterator = rootNode.fields();
 
         while (fieldsIterator.hasNext()) {
@@ -305,7 +366,7 @@ public class Main {
                         LinkedHashMap::new
                 ));
 
-        return (Map<String, JsonNode>[]) new Map<?, ?>[]{firstMapOfUniqueNodes, secondMapOfUniqueNodes};
+        return (Map<String, JsonNode>[]) new Map<?, ?>[] {firstMapOfUniqueNodes, secondMapOfUniqueNodes};
 
     }
 
@@ -318,18 +379,25 @@ public class Main {
         }
     }
 
+    public static JsonNode readJsonTreeByFilePath(String path) throws IOException {
+
+        initGlobalObjectsIfNeeded();
+
+        JsonNode rootNode;
+        try (FileInputStream inputStream = new FileInputStream(Paths.get(path).toAbsolutePath().toString())) {
+            rootNode = reader.readTree(inputStream);
+        }
+
+        return rootNode;
+
+    }
+
     private static Map<String, JsonNode> readJsonFileToPlainMap(String filePath) throws IOException {
 
         initGlobalObjectsIfNeeded();
 
-        JsonNode firstRootJsonNode = readJsonTreeByFilePath(filePath);
-
-        Map<String, JsonNode> nodesPlainMap = new HashMap<>();
-        if (firstRootJsonNode.isObject() && !firstRootJsonNode.isEmpty()) {
-            nodesPlainMap = getPlainSortedMapOfNodes(firstRootJsonNode);
-        }
-
-        return nodesPlainMap;
+        JsonNode rootJsonNode = readJsonTreeByFilePath(filePath);
+        return getSortedPlainMapOfNodes(rootJsonNode);
 
     }
 
@@ -345,19 +413,6 @@ public class Main {
         writer.write(content);
         writer.flush();
         writer.close();
-
-    }
-
-    public static JsonNode readJsonTreeByFilePath(String path) throws IOException {
-
-        initGlobalObjectsIfNeeded();
-
-        JsonNode rootNode;
-        try (FileInputStream inputStream = new FileInputStream(Paths.get(path).toAbsolutePath().toString())) {
-            rootNode = reader.readTree(inputStream);
-        }
-
-        return rootNode;
 
     }
 
