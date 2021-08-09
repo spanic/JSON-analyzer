@@ -46,10 +46,9 @@ public class MainTest {
         final String tempFileName = "result.json";
         String jsonContent = new String(Files.readAllBytes(Paths.get("src/test/resources/first.json")));
         Main.writeToFile(tempDirectory, tempFileName, jsonContent);
+
         Path resultFilePath = tempDirectory.resolve(tempFileName);
-
         assertTrue(Files.exists(resultFilePath), () -> "file doesn't exists");
-
         JsonNode rootNode = JsonNodeFactory.instance.missingNode();
         try {
             rootNode = Main.readJsonTreeByFilePath(resultFilePath.toString());
