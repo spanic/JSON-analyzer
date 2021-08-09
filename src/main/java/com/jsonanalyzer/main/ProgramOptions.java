@@ -2,6 +2,7 @@ package com.jsonanalyzer.main;
 
 public enum ProgramOptions {
 
+    ALIGN_AND_SORT("-sort"),
     COMPARE("-compare"),
     CLEANUP("-cleanup"),
     MERGE("-merge"),

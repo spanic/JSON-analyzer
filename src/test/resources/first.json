@@ -1,0 +1,13 @@
+{
+    "component.promo-carousel.offers-included": "Offers included",
+    "component.bolt.on.section.terms.apply": "Terms apply",
+    "component.basket": {
+        "buttons": {
+            "checkout": "Check out",
+            "continue-shopping": "Continue shopping",
+            "empty-basket": "Empty basket"
+        }
+    },
+    "component.bolt.on.section.see.info": "See full info",
+    "component.save-basket.sign-in-title": "Sign in or register"
+}
