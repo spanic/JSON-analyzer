@@ -4,28 +4,15 @@ import com.fasterxml.jackson.core.json.JsonReadFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
-import javafx.util.Pair;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.Pair;
 
-import java.io.BufferedWriter;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.OutputStreamWriter;
+import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.text.MessageFormat;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.ListIterator;
-import java.util.Map;
-import java.util.Set;
-import java.util.TreeMap;
+import java.util.*;
 import java.util.stream.Collectors;
 
 public class Main {
@@ -93,8 +80,9 @@ public class Main {
             List<Pair<String, String>> listOfNamedSets = new ArrayList<>();
             for (int i = 1; i < arguments.length; i++) {
                 String[] setNameAndFilePath = arguments[i].split("=");
-                listOfNamedSets.add(new Pair<>(setNameAndFilePath[0], setNameAndFilePath[1]));
+                listOfNamedSets.add(new ImmutablePair<>(setNameAndFilePath[0], setNameAndFilePath[1]));
             }
+
             findInclusions(arguments[0], listOfNamedSets.toArray(new Pair[0]));
         }
 
@@ -240,7 +228,7 @@ public class Main {
 
             System.out.println(MessageFormat.format("Checking \"{0}\" set...", set.getKey()));
 
-            Pair<String, Set<String>> namedSetPlainMap = new Pair<>(set.getKey(), readJsonFileToPlainMap(set.getValue()).keySet());
+            Pair<String, Set<String>> namedSetPlainMap = new ImmutablePair<>(set.getKey(), readJsonFileToPlainMap(set.getValue()).keySet());
 
             for (String currentSourceKey : sourceKeySet) {
                 if (namedSetPlainMap.getValue().contains(currentSourceKey)) {
